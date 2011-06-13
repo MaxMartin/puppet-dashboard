@@ -135,12 +135,19 @@ class Report < ActiveRecord::Base
   end
 
   def add_missing_metrics
-    ['pending', 'unchanged'].each do |additional_status|
+    ['pending', 'unchanged', 'changed', 'failed'].each do |additional_status|
       next if metrics.detect {|m| m.category == 'resources' and m.name == additional_status }
       metrics << metrics.new(
         :category => 'resources',
         :name     => additional_status,
         :value    => resource_statuses.select {|rs| rs.status == additional_status  }.length
+      )
+    end
+    unless metrics.detect {|m| m.category == 'resources' and m.name == 'total' }
+      metrics << metrics.new(
+        :category => 'resources',
+        :name     => 'total',
+        :value    => resource_statuses.length
       )
     end
   end

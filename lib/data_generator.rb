@@ -34,6 +34,8 @@ class Puppet::Transaction::Report
   def compute_status
     if resource_statuses.values.any? {|res| res.failed}
       "failed"
+    elsif resource_statuses.values.any? {|res| res.pending}
+      "pending"
     elsif resource_statuses.values.any? {|res| res.changed}
       "changed"
     else
@@ -50,7 +52,7 @@ end
 class Puppet::Resource::Status
   attr_accessor :resource_type, :title, :resource, :file, :line,
     :evaluation_time, :change_count, :out_of_sync_count, :tags, :time, :events,
-    :out_of_sync, :changed, :skipped, :failed
+    :out_of_sync, :changed, :skipped, :failed, :pending
 
   def self.generate(report, options)
     Puppet::Resource::Status.new.tap do |rs|
@@ -69,6 +71,7 @@ class Puppet::Resource::Status
       rs.changed           = rs.change_count > 0
       rs.skipped           = false
       rs.failed            = rs.change_count > 0 && rand(100) < 10
+      rs.pending           = true if !rs.failed && rand(100) < 10
 
       options[:num_events].times do
         event = DataGenerator.generate_resource_event(rs)
@@ -83,6 +86,8 @@ class Puppet::Transaction::Event
     :historical_value, :message, :name, :status, :time
 
   def self.generate(resource_status)
+    status = resource_status.failed ? "failure" : resource_status.pending ? "noop" : "success"
+
     Puppet::Transaction::Event.new.tap do |event|
       event.audited          = false
       event.property         = "mode"
@@ -91,7 +96,7 @@ class Puppet::Transaction::Event
       event.historical_value = 666
       event.message          = "Updated file mode"
       event.name             = "mode"
-      event.status           = "success"
+      event.status           = status
       event.time             = resource_status.time
     end
   end
