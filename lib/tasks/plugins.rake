@@ -2,6 +2,20 @@ require 'pathname'
 
 namespace :puppet do
   namespace :plugin do
+    def link_contents(source_dir, target_dir)
+      source_dir.children.each do |source_file|
+        target_file = Pathname.new(target_dir + source_file.basename)
+
+        if source_file.directory?
+          target_file.mkdir unless target_file.exist?
+          link_contents(source_file, target_file)
+        else
+          target_file.delete if target_file.symlink? && target_file.realpath != source_file
+          target_file.make_symlink(source_file.relative_path_from(target_dir)) unless target_file.exist?
+        end
+      end
+    end
+ 
     desc "Copy the migrations from a Puppet plugin into db/migrate"
     task :stage do
       unless plugin_name = ENV['PLUGIN']
@@ -23,15 +37,7 @@ namespace :puppet do
         FileUtils.cp source_file, "db/migrate/#{base_file_name}"
       end
 
-      Dir.glob(File.join(plugin_dir, 'public', '**')) do |source_file|
-        relative_name = source_file.sub(/^#{Rails.root}/, '..')
-        target_name = File.join(Rails.root, source_file.sub(/^#{plugin_dir}\//, ''))
-
-        if File.symlink?(target_name) && Pathname.new(target_name).realpath.to_s != source_file
-          FileUtils.rm target_name
-        end
-        FileUtils.ln_s relative_name, target_name unless File.symlink? target_name
-      end
+      link_contents(Pathname.new(File.join(plugin_dir, 'public')), Pathname.new(File.join(Rails.root, 'public')))
     end
 
     desc "Install a Dashboard plug-in"
